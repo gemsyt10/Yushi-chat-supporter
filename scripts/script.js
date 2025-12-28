@@ -50,11 +50,11 @@ let moodTimer = null;
    LOVE
 ===================== */
 function getLove() {
-    return Number(localStorage.getItem("love")) || 50; // старт 50 зі 100
+    return Number(localStorage.getItem("love")) || 50;
 }
 
 function setLove(val) {
-    val = Math.max(0, Math.min(100, val)); // обмеження 0-100
+    val = Math.max(0, Math.min(100, val));
     localStorage.setItem("love", val);
     updateAvatarByLove();
 }
@@ -71,7 +71,6 @@ function updateAvatarByLove() {
     else avatarEl.src = AVATARS.love;
 }
 
-// 👉 тимчасовий сумний аватар
 function triggerSadAvatar(timeout = 10000) {
     clearTimeout(moodTimer);
     avatarEl.src = AVATARS.sad;
@@ -187,14 +186,26 @@ function random(arr) {
 }
 
 /* =====================
+   HELPER: чи текст містить букви/цифри
+===================== */
+function hasTextContent(str) {
+    return /[\p{L}\p{N}]/u.test(str);
+}
+
+/* =====================
+   HELPER: чи текст лише смайли
+===================== */
+function isOnlyEmojis(text) {
+    const withoutEmojis = text.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}\s]/gu, "");
+    return withoutEmojis.length === 0 && text.trim().length > 0;
+}
+
+/* =====================
    BAD WORDS
 ===================== */
 const BAD_WORDS = [
-    // мат
     "бля", "бляд", "хуй", "хуя", "пизд", "пздц", "єб", "їб",
     "нахуй", "сука", "сучка", "гандон",
-
-    // образи
     "тупа", "ідіотка", "дура", "дебілка", "відвали", "заткнись"
 ];
 
@@ -206,7 +217,22 @@ function containsBadWords(text) {
 /* =====================
    MATCH PHRASES
 ===================== */
-function matchResponses(text) {
+function matchResponses(text, originalText) {
+    // Якщо це смайли - шукаємо точне співпадіння
+    if (isOnlyEmojis(originalText)) {
+        for (const item of responses) {
+            if (!item.triggers || !item.answers) continue;
+            
+            for (const trigger of item.triggers) {
+                if (trigger === originalText.trim()) {
+                    return random(item.answers);
+                }
+            }
+        }
+        return null;
+    }
+
+    // Для тексту - шукаємо в triggers
     const input = normalizeText(text);
     let matches = [];
 
@@ -215,7 +241,7 @@ function matchResponses(text) {
 
         for (const trigger of item.triggers) {
             const t = normalizeText(trigger);
-            if (input.includes(t)) {
+            if (t && input.includes(t)) {
                 matches.push({ answers: item.answers, weight: t.length });
             }
         }
@@ -227,29 +253,69 @@ function matchResponses(text) {
 }
 
 /* =====================
+   MATH CALCULATOR - ВИПРАВЛЕНО
+===================== */
+function calculateMath(expression) {
+    try {
+        // Видаляємо всі пробіли
+        expression = expression.replace(/\s+/g, "");
+        
+        // Перевіряємо чи є лише дозволені символи
+        if (!/^[\d+\-*/.()]+$/.test(expression)) {
+            return null;
+        }
+        
+        // Заміняємо небезпечні оператори
+        expression = expression.replace(/\*\*/g, "^"); // степінь (якщо потрібно)
+        
+        // Безпечний парсинг через Function (обмежений контекст)
+        const result = new Function(`'use strict'; return (${expression})`)();
+        
+        // Перевіряємо чи результат число
+        if (typeof result !== "number" || !isFinite(result)) {
+            return null;
+        }
+        
+        // Округлюємо до 10 знаків після коми
+        return Math.round(result * 10000000000) / 10000000000;
+    } catch (error) {
+        return null;
+    }
+}
+
+/* =====================
    BOT BRAIN
 ===================== */
 function botAnswer(text) {
     const lower = normalizeText(text);
+    const original = text.trim();
 
-    if (["стоп", "стоп-гра", "стоп-слова"].includes(lower)) {
+    // Стоп-команди для гри
+    if (["стоп", "стоп гра", "стоп слова"].includes(lower)) {
         restoreGame();
         return "Гру зупинено ✅";
     }
 
-    if (lower.startsWith("слово:") || booword) {
+    // Гра в слова
+    if (lower.startsWith("слово:") || lower.startsWith("слово ") || booword) {
         booword = true;
-        return wordGameLogic(lower.replace("слово:", ""));
+        const word = lower.replace(/^слово[:\s]+/, "");
+        return wordGameLogic(word);
     }
 
-    if (/^[\d+\-*/().\s]+$/.test(lower)) {
-        try {
-            return "Результат: " + new Function(`return ${lower}`)();
-        } catch {
-            return "Не можу порахувати 🤔";
+    // Математичні вирази - ВИПРАВЛЕНО
+    if (/^[\d+\-*/.()=\s]+$/.test(original)) {
+        const cleaned = original.replace(/=/g, "").trim();
+        const result = calculateMath(cleaned);
+        
+        if (result !== null) {
+            return `Результат: ${result} ✅`;
+        } else {
+            return "Не можу порахувати, перевір вираз і чи ти використовуєш чі знаки (+, -,/ ділення, * множення, ** степінь число**степінь, % залишок ділення)";
         }
     }
 
+    // Зміна імені
     if (lower.startsWith("мене звати ")) {
         userName = text.slice(11).trim();
         localStorage.setItem("username", userName);
@@ -268,32 +334,36 @@ function getYushiResponse(text) {
 
     let response = "";
 
-    // позитив
-    if (["люблю", "дякую", "ти класна", "як справи", "красуння", "розумашка", "розумна", "вибач", "😘", "💓", "💝", "кохання моє", "що робиш", "привітик"].some(w => lower.includes(w))) {
-        love = Math.min(100, love + 1); // +1 любові
+    // Позитивні слова
+    const positiveWords = ["люблю", "дякую", "ти класна", "як справи", "красуня", 
+                           "розумашка", "розумна", "вибач", "кохання моє", "що робиш", "привітик"];
+    if (positiveWords.some(w => lower.includes(w))) {
+        love = Math.min(100, love + 1);
     }
 
-    // негатив / мат / образи
-    if (
-        ["ненавиджу"].some(w => lower.includes(w)) ||
-        containsBadWords(text)
-    ) {
-        love = Math.max(0, love - 1); // -1 любові
-        triggerSadAvatar(5000); // сумна на 5 сек
+    // Негативні слова / мат
+    if (lower.includes("ненавиджу") || containsBadWords(text)) {
+        love = Math.max(0, love - 1);
+        triggerSadAvatar(5000);
         response = "Мені боляче таке чути... 😔";
     }
 
-    // завжди оновлюємо любов та аватар
     setLove(love);
 
     if (!response) {
-        response =
-            matchResponses(text) ||
-            random([
-                `Я не зовсім зрозуміла тебе, ${userName} 🤍`,
-                "Можеш сказати інакше? 😊",
-                "Я трохи розгубилась 😅"
-            ]);
+        const matched = matchResponses(text, text);
+
+        if (matched) {
+            // Якщо знайшла відповідь, але вона лише смайли, а користувач писав текст
+            if (!hasTextContent(matched) && hasTextContent(text)) {
+                response = `Я не зовсім зрозуміла тебе, ${userName}. Можеш сказати по-іншому?`;
+            } else {
+                response = matched;
+            }
+        } else {
+            // Не знайшла відповідь
+            response = `Я не зовсім зрозуміла тебе, ${userName}. Можеш сказати по-іншому?`;
+        }
     }
 
     return response;
@@ -305,7 +375,7 @@ function getYushiResponse(text) {
 function onUserMessage(message) {
     clearTimeout(waitingTimer);
 
-    // якщо повторює повідомлення
+    // Перевірка на повторення
     if (message === lastUserText) {
         repeatCounter++;
         if (repeatCounter >= 3) {
@@ -318,6 +388,7 @@ function onUserMessage(message) {
 
     lastUserText = message;
 
+    // Отримуємо відповідь
     let response = botAnswer(message);
     if (!response) response = getYushiResponse(message);
 
