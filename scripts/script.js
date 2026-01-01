@@ -50,7 +50,7 @@ let moodTimer = null;
    LOVE
 ===================== */
 function getLove() {
-    return Number(localStorage.getItem("love")) || 50;
+    return Number(localStorage.getItem("love")) || 40;
 }
 
 function setLove(val) {
@@ -110,20 +110,14 @@ function typeText(el, text, speed = 25) {
 }
 
 /* =====================
-   WORD GAME
+   WORD GAME WITHOUT DICTIONARY CHECK
 ===================== */
 let booword = false;
 let lastWord = "";
-let gameDictionary = structuredClone(mainDictionary);
 
 function restoreGame() {
-    gameDictionary = structuredClone(mainDictionary);
     lastWord = "";
     booword = false;
-}
-
-function wordExists(word) {
-    return Object.values(gameDictionary).flat().includes(word);
 }
 
 function wordGameLogic(userWord) {
@@ -131,40 +125,37 @@ function wordGameLogic(userWord) {
 
     if (userWord.length < 2) return "Слово закоротке 🤔";
     if (userWord[0] === "ь") return "Слова не можуть починатися на Ь ❌";
-    if (!wordExists(userWord)) return "Такого слова немає ❌";
-    if (userWord === lastWord) return "Це слово вже було 🙃";
 
     if (!lastWord) {
-        const keys = Object.keys(gameDictionary).filter(k => gameDictionary[k].length);
-        if (!keys.length) {
-            restoreGame();
-            return "У мене закінчилися слова 🥺";
-        }
-        const key = random(keys);
-        const word = gameDictionary[key].pop();
-        lastWord = word;
-        return `Моє слово: ${word.toUpperCase()}. Тобі на ${word.at(-1).toUpperCase()}`;
+        // Перший хід бота — просто відповідає рандомним словом на твою літеру
+        lastWord = userWord;
+        const botWord = generateBotWord(lastWord.at(-1));
+        lastWord = botWord;
+        return `Моє слово: ${botWord.toUpperCase()}. Тобі на ${botWord.at(-1).toUpperCase()}`;
     }
 
+    // Перевірка на першу літеру
     if (userWord[0] !== lastWord.at(-1)) {
         return `Треба на "${lastWord.at(-1).toUpperCase()}" ❌`;
     }
 
-    const key = userWord.at(-1);
-    const arr = gameDictionary[key]?.filter(w => w[0] !== "ь");
+    // Бот генерує своє слово
+    const botWord = generateBotWord(userWord.at(-1));
+    lastWord = botWord;
 
-    if (!arr?.length) {
-        restoreGame();
-        return "Ти виграв 🏆";
-    }
-
-    const yWord = arr.pop();
-    gameDictionary[key] = gameDictionary[key].filter(w => w !== yWord);
-    lastWord = yWord;
-
-    return `Моє слово: ${yWord.toUpperCase()}. Тобі на ${yWord.at(-1).toUpperCase()}`;
+    return `Моє слово: ${botWord.toUpperCase()}. Тобі на ${botWord.at(-1).toUpperCase()}`;
 }
 
+// Простий генератор слів бота (можеш замінити на свій масив)
+function generateBotWord(lastLetter) {
+    // Тут можна додати свій масив слів для бот-слів
+    const sampleWords = ["кіт", "тато", "омар", "рак", "корова", "авто", "орел"];
+    // Вибирає перше слово, що починається на потрібну літеру
+    const filtered = sampleWords.filter(w => w[0] === lastLetter && w[0] !== "ь");
+    if (filtered.length) return filtered[Math.floor(Math.random() * filtered.length)];
+    // Якщо немає слова на літеру — просто повертає будь-яке слово
+    return sampleWords[Math.floor(Math.random() * sampleWords.length)];
+}
 /* =====================
    TEXT HELPERS
 ===================== */
@@ -251,7 +242,7 @@ function matchResponses(text, originalText) {
     matches.sort((a, b) => b.weight - a.weight);
     return random(matches[0].answers);
 }
-
+//love
 /* =====================
    MATH CALCULATOR - ВИПРАВЛЕНО
 ===================== */
