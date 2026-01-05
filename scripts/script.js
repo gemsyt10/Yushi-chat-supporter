@@ -76,7 +76,7 @@ buildResponseIndex();
    LOVE
 ===================== */
 function getLove() {
-    const love = Number(localStorage.getItem("love"));
+    const love = Number(localStorage.getItem("love")|| 40);
     return isNaN(love) ? 50 : Math.max(0, Math.min(100, love));
 }
 
@@ -453,7 +453,7 @@ function calculateLovePoints(text) {
         }
     }
     
-    const happyEmojiCount = (text.match(/[😊🥰😍🤗💖💕💗💓💞💘💝💟❤️🧡💛💚💙💜🤎🖤🤍💯✨🌟⭐🌠🎇🎆🌈☀️🌤️⛅🌥️🌦️🌧️⛈️🌩️🌨️☃️⛄❄️🌪️🌀💐🌸💮🏵️🌹🥀🌺🌻🌼🌷]/gu) || []).length;
+    const happyEmojiCount = (text.match(/[😘😊🥰😍🤗💖💕💗💓💞💘💝💟❤️🧡💛💚💙💜🤎🖤🤍💯✨🌟⭐🌠🎇🎆🌈☀️🌤️⛅🌥️🌦️🌧️⛈️🌩️🌨️☃️⛄❄️🌪️🌀💐🌸💮🏵️🌹🥀🌺🌻🌼🌷]/gu) || []).length;
     const sadEmojiCount = (text.match(/[😔😞😢😭🥺😩😫😖😣😕🙁☹️😟😤😠😡🤬💔🖤💢😶🌧️⛈️🌩️🌨️☃️⛄❄️🌪️🌀💐🥀]/gu) || []).length;
     
     points += Math.min(3, happyEmojiCount * 0.5);
@@ -486,19 +486,19 @@ function updateLoveBasedOnMessage(text) {
 function getLoveStatus() {
     const love = getLove();
     
-    if (love <= 20) return {
+    if (love <= 10) return {
         level: "very_low",
         emoji: "💔",
         description: "Дуже низький рівень прив'язаності",
         mood: "сумна"
     };
-    else if (love <= 40) return {
+    else if (love <= 30) return {
         level: "low",
         emoji: "😔",
         description: "Низький рівень прив'язаності",
         mood: "засмучена"
     };
-    else if (love <= 60) return {
+    else if (love <= 50) return {
         level: "neutral",
         emoji: "😐",
         description: "Нейтральні стосунки",
@@ -551,6 +551,7 @@ function containsBadWords(text) {
     const normalized = normalizeText(text);
     return BAD_WORDS.some(word => normalized.includes(word));
 }
+
 /*=============
 ===========
 ST 2
